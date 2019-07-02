@@ -254,6 +254,10 @@ The [IndexedDBShim](http://github.com/axemclion/IndexedDBShim) is a project that
 
 Changelog
 ---------
+#### 10.0.0 ####
+
+* Replace sauce-tunnel with sauce-connect-launcher
+
 #### 9.0.0 ####
 * removed support for YUI Test (Yahoo deprecated the framework a year ago). It will still work but we are not planning support for it moving forward
 * update Sauce Connect to version 4.3.16
