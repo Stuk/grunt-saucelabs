@@ -2,7 +2,7 @@
 
 module.exports = function (grunt) {
   var Q = require('q');
-  var SauceTunnel = require('sauce-tunnel');
+  var sauceConnectLauncher = require('sauce-connect-launcher');
   var TestRunner = require('../src/TestRunner')(grunt);
 
   Q.longStackSupport = true;
@@ -71,34 +71,36 @@ module.exports = function (grunt) {
   }
 
   function createTunnel(arg) {
-    var tunnel;
-
-    reportProgress({
-      type: 'tunnelOpen'
-    });
-
-    tunnel = new SauceTunnel(arg.username, arg.key(), arg.identifier, true, ['-P', '0'].concat(arg.tunnelArgs));
-
-    ['write', 'writeln', 'error', 'ok', 'debug'].forEach(function (method) {
-      tunnel.on('log:' + method, function (text) {
-        reportProgress({
-          type: 'tunnelEvent',
-          verbose: false,
-          method: method,
-          text: text
-        });
+    return new Promise((resolve, reject) => {
+      reportProgress({
+        type: 'tunnelOpen'
       });
-      tunnel.on('verbose:' + method, function (text) {
-        reportProgress({
-          type: 'tunnelEvent',
-          verbose: true,
-          method: method,
-          text: text
-        });
-      });
-    });
 
-    return tunnel;
+      // Original SauceTunnel creation:
+      // tunnel = new SauceTunnel(arg.username, arg.key(), arg.identifier, true, ['-P', '0'].concat(arg.tunnelArgs));
+      sauceConnectLauncher(
+        {
+          username: arg.username,
+          accessKey: arg.key(),
+          tunnelIdentifier: arg.identifier,
+          logger: (message) => {
+            reportProgress({
+              type: 'tunnelEvent',
+              verbose: true,
+              method: "debug",
+              text: message
+            });
+          }
+        },
+        (err, sauceConnectProcess) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(sauceConnectProcess);
+        }
+      );
+    });
   }
 
   function runTask(arg, framework, callback) {
@@ -109,21 +111,17 @@ module.exports = function (grunt) {
         var deferred;
 
         if (arg.tunneled) {
-          deferred = Q.defer();
-
-          tunnel = createTunnel(arg);
-          tunnel.start(function (succeeded) {
-            if (!succeeded) {
-              deferred.reject('Could not create tunnel to Sauce Labs');
-            } else {
-              reportProgress({
-                type: 'tunnelOpened'
-              });
-
-              deferred.resolve();
-            }
+          return createTunnel(arg)
+          .then(sauceConnectProcess => {
+            tunnel = sauceConnectProcess;
+            reportProgress({
+              type: 'tunnelOpened'
+            });
+          })
+          .catch(err => {
+            err.message = "Could not create tunnel to Sauce Labs because: " + err.message;
+            throw err;
           });
-          return deferred.promise;
         }
       })
       .then(function () {
@@ -140,7 +138,7 @@ module.exports = function (grunt) {
             type: 'tunnelClose'
           });
 
-          tunnel.stop(function () {
+          tunnel.close(function () {
             deferred.resolve();
           });
 
