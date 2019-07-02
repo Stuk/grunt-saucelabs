@@ -108,8 +108,6 @@ module.exports = function (grunt) {
 
     Q
       .fcall(function () {
-        var deferred;
-
         if (arg.tunneled) {
           return createTunnel(arg)
           .then(sauceConnectProcess => {
